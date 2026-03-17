@@ -1,0 +1,173 @@
+---
+title: "A Statistical Analysis on Low birthweight and its Factors"
+output: html_document
+date: "2026-03-09"
+---
+
+Upload the following library and packages before running the code below:
+
+```{r}
+library(MASS)
+data(birthwt)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(effects)
+```
+
+
+##Abstract: 
+The aim of this project is to explore significant relationships between low birthweight and predictors from the birthwt dataset in R. logistic regression was used to assess relationships between low birth weight and maternal characteristics, including alternative interpretations of physician visits. Model selection based on AIC identified maternal weight, race, smoking status, hypertension, previous premature labor, and uterine irritability as important predictors of low birth weight. Physician visits were not retained in the final model as they did not improve the model fit. 
+
+##Data description: 
+The dataset is uploaded from the MASS library and renamed as birthData. The following variables that are split into 10 columns are as follows: 
+
+●	low: indicator (1 for low birthweight and 0 for non-low birthweight) of birth weight less than 2.5kg,
+●	age: mother’s age in years,
+●	lwt: mother’s weight in pounds at last menstrual period,
+●	race: mother’s race (1 = white, 2 = black, 3 = other),
+●	smoke: smoking status during pregnancy,
+●	ptl: number of previous premature labours,
+●	ht: history of hypertension,
+●	ui: presence of uterine irritability,
+●	ftv: number of physician visits during the first trimester,
+●	bwt: birth weight in grams.
+
+Summary  statistics of birthwt is produced using the summary() function and the ggplot() package to to plot how low birthweight is distributed according to two predictors:
+
+```{r setup, include=FALSE}
+# Run summary statistics for birthData
+birthData = birthwt 
+summary(birthData)
+
+```
+The following plots are produced:
+```{r}
+
+# Create the plot continuous x variable : age, lwt vs low
+ggplot(birthData, aes(x = age, y = low, color = lwt)) +
+  geom_point(size=5) +
+  labs(title = "Low Birthweight vs Age colored by Mother's weight last menstrual period", 
+       x = "Age",
+       y = "Low",
+       color = "lwt") +
+  theme_minimal()
+
+raceFactor = as.factor(birthData$race) #race of mom
+smokeFactor = as.factor(birthData$smoke) #smoker/non-smoker
+htFactor = as.factor(birthData$ht) #has hypertension/ no hypertension
+uiFactor = as.factor(birthData$ui) # uterine iritability/ no iritability
+ftvFactor = as.factor(birthData$ftv) # physician visit / no visit
+
+# Low vs. Race by Smoking status
+
+ggplot(birthData, aes(x = raceFactor, y = low, color = smokeFactor, shape = smokeFactor)) +
+  geom_jitter(size=3, alpha = 0.4, position = position_jitter(width=0.2, height = 0.05)) +
+  scale_color_brewer(palette="Set1")+
+  labs(title = "Low birthweight vs Race by Smoking status",
+       x = "Race",
+       y = "Low birthweight",
+       color = "Smoking status",
+       shape = "Smoking status") +
+  theme_minimal()
+
+# Low vs. hypertension by physician visit
+ggplot(birthData, aes(x = htFactor, y = low, color = ftvFactor, shape = ftvFactor)) +
+  geom_jitter(size=3, alpha = 0.4, position = position_jitter(width=0.2, height = 0.05)) +
+  scale_color_brewer(palette="Set1") +
+  labs(title = "Low birthweight vs Hypertension history by Physician visits",
+       x = "Hypertension",
+       y = "Low birthweight",
+       color = "Physician visits",
+       shape = "Physician status") +
+  theme_minimal()
+
+# Low vs. uterine irritability by Smoking status 
+ggplot(birthData, aes(x = uiFactor, y = low, color = smokeFactor, shape = smokeFactor)) +
+  geom_jitter(size=3, alpha = 0.4, position = position_jitter(width=0.2, height = 0.05)) +
+  scale_color_brewer(palette="Set1") +
+  labs(title = "Low birthweight vs Uterine irritability by Smoking status",
+       x = "Uterine irritability",
+       y = "Low birthweight",
+       color = "Smoking status",
+       shape = "Smoking status") +
+  theme_minimal()
+
+```
+##Transformation of variables
+
+Six of the independent variables in this dataset are categorical variables and therefore need transformation using the as.factor() function. Upon investigating the dataset, a table is produced with columns corresponding to the number of visits and rows as to how many mothers have had several physician visits. This variable is re-coded into two ways for simplified analysis:
+a)	Creating two categories of physician visits wherein women who had no physician visits as ‘none’ and ‘some’ for those with one or more visits
+b)	Creating three categories wherein ‘none’ corresponds to zero visits, ‘1’ is to one visit, and ‘some’ is to two or many.
+
+```{r}
+birthData$ftv.recoded = factor(recode(birthData$ftv, '0'="0", '1'="1", .default="2+"))
+birthData$ftv.recoded2 = factor(recode(birthData$ftv, '0'="none", .default="some"))
+```
+
+Compare ftv and ftv.recoded 
+```{r}
+xtabs(~ftv + ftv.recoded2, data = birthData)
+xtabs(~ftv + ftv.recoded, data = birthData)
+```
+From ftv.recoded 2, there are 100 patients who had no visits to the physician while a number of then had more than 1 visits which are labelled under 'some'. On the other hand, ftv.recoded shares the same idea but instead of 'some', it is generalised into patients who had 2 or more visits (i.e, 7 patients with 3 visits). 
+
+##Methodology: 
+The conceptual model of predicting low birth weight is formulated below:
+
+Y_{lowbirthweight}=\beta_1age\ +\ \beta_2lwt\ +\ \beta_3race+\beta_4smoke+\beta_5ptl+\beta_6ht+\beta_7ui+\beta_8ftv+\varepsilon
+To implement this formula in R, it is fit into the glm() function with the categorical and continuous numerical predictors. The coef() and exp() functions are used to obtain the odds ratio for easier interpretation of coefficients. Followed by this is the use of lm() 
+
+```{r}
+birthGLM<- glm(low ~ age + lwt + raceFactor + smokeFactor + ptl + htFactor + uiFactor + ftv.recoded, data = birthData, family = binomial(link="logit"))
+summary(birthGLM)
+
+cbind(
+  Estimate = coef(birthGLM),
+  OddsRatio = exp(coef(birthGLM))
+)
+```
+From the birthGLM() model, a summary table was obtained presenting the estimated coefficients for each predictor along with their corresponding estimate, standard error, z value, and p-value. Predictors denoted with (.) and (*) were prioritized for analysis namely maternal weight (lwt), race (raceFactor2 = black, raceFactor3 = other), smoking status (smokeFactor1), number of previous labors (ptl), and hypertension history (htFactor1). 
+
+The resulting factors from the recoded ftv variable exhibited relatively high p-values, indicating no statistically significant association with low birth weight. Age and mother’s weight in pounds are negatively correlated to low birthweight. However, since age has a larger p-value than 0.05, it is statistically insignificant. Mothers are identified to have 0.98 times lower odds of having a low birthweight of their babies. On the other hand, those who smoke have 2.38 higher odds of birthing low-weighted babies. Low birthweight prevalence shows a pronounced racial disparity, with findings indicating a 3.50 odds ratio among Black women compared to white women, whereas women categorized as other races faced 2.27 higher odds. Lastly, those with hypertension history have significantly higher odds, with a ratio of 6.65 odds in birthing low-weighted babies.  
+
+Conversely, the three levels in ftv variable as demonstrated in the second model birthGLM_2() similarly remained statistically insignificant. The estimated odds ratios for the previously significant predictors were largely consistent with those from the first model, with only minor numerical differences. Particularly, smokers in the second model have increased by 0.10 higher odds, whereas hypertension decreased by 0.45 odds compared to the first model. 
+```{r}
+birthGLM_2<- glm(low ~ age + lwt + raceFactor + smokeFactor + ptl + htFactor + uiFactor + ftv.recoded2, data = birthData, family = binomial(link="logit"))
+summary(birthGLM_2)
+
+cbind(
+  Estimate = coef(birthGLM_2),
+  OddsRatio = exp(coef(birthGLM_2))
+)
+```
+##Model Diagnostics
+
+Residual diagnostic plots were generated for both models, with minor variations observed due to differences in scale. Visual inspection of the QQ plots indicates that the residuals largely follow the reference line, suggesting no major departures from the assumed distribution. Model comparison was subsequently conducted using an automated model selection procedure, followed by a drop-in deviance test to assess the contribution of individual predictors. 
+
+```{r}
+# Generate standard diagnostic plots
+par(mfrow = c(2, 2)) # Arrange plots in a 2x2 grid
+plot(birthGLM)
+plot(birthGLM_2)
+```
+
+With a lower AIC value from the first model, we investigate the interaction effects of predictors from the second model using the function down below: 
+
+```{r}
+birthGLM_3 <- step(birthGLM_2, scope = list(lower = "~1", upper = "~( age + lwt + raceFactor + smokeFactor + ptl + htFactor + uiFactor + ftv.recoded2)"))
+
+```
+The interaction is visualised through the following plots: 
+```{r, fig.align = 'center'}
+birth.eff <- allEffects(birthGLM_3)
+plot(birth.eff,selection = 1)
+plot(birth.eff,selection = 2)
+plot(birth.eff,selection = 3)
+plot(birth.eff,selection = 4, multiline = TRUE)
+plot(birth.eff,selection = 5, multiline = TRUE)
+```
+The stepwise model selection resulted to an AIC of 217.99 consisting the significant variables mother’s weight, race, smoking status, number of premature labors, hypertensions history, and presence of uterine irritability. Age and frequency of physician visits were excluded as it lacks explanatory power after adjustment of other covariates. A few potential reasons could be rooting from socioeconomic differences or mothers who are already facing high risk during pregnancy require frequent doctor’s attention.  
+
+##Conclusion
+In conclusion, six predictors were identified as independently associated with low birth weight. Maternal weight was negatively associated with low birth weight, indicating that higher maternal weight was linked to lower odds of low birth weight, while the remaining predictors were associated with increased odds. These predictors were selected through stepwise model selection using AIC. Frequency in physician visits was examined using different recoding strategies; however, it did not contribute additional explanatory power and was excluded from the final model. The final model that provided the best balance between model fit and complexity, included maternal weight, race, smoking status, number of previous labors, hypertension, and uterine irritability. 
